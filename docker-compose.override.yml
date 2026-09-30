@@ -1,0 +1,8 @@
+services:
+  db:
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+  frontend:
+    volumes:
+      - ./frontend/html:/usr/share/nginx/html:ro

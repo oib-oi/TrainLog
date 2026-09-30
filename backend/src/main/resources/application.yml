@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: trainlog
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  session:
+    timeout: 30d
+    jdbc:
+      initialize-schema: never
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        same-site: strict
+        max-age: 30d
