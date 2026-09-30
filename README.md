@@ -135,7 +135,7 @@ cd backend
 
 Схема БД меняется только через миграции, Hibernate её лишь проверяет (`ddl-auto: validate`).
 
-1. Добавить файл в `db/migration` со следующим номером версии: `V3__add_something.sql`.
+1. Добавить файл в `db/migration` со следующим номером версии: `V7__add_something.sql`.
    Уже применённые миграции не редактировать.
 2. Применить:
 
@@ -215,11 +215,4 @@ curl -c cookies.txt -X POST http://localhost:8080/api/auth/login \
 curl -b cookies.txt -X POST http://localhost:8080/api/workouts \
   -H "Content-Type: application/json" \
   -d '{"performedOn":"2026-09-29","title":"Ноги","durationMinutes":60}'
-```
-
-Тренировки, созданные до появления аккаунтов, остаются в БД без владельца. Передать их пользователю:
-
-```bash
-docker compose exec db psql -U trainlog -d trainlog \
-  -c "update workout set account_id = (select id from account where email = 'me@example.com') where account_id is null"
 ```
