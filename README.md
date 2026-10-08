@@ -47,6 +47,8 @@ docker compose -f docker-compose.yml up --build
 
 Остановка: `docker compose down`. Остановка с удалением данных БД: `docker compose down -v`.
 
+Развёртывание в Kubernetes (minikube) — манифесты и инструкция в [k8s/Отчёт.md](k8s/Отчёт.md).
+
 ## Конфигурация
 
 Все настройки задаются переменными окружения в `.env`:

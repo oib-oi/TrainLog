@@ -22,3 +22,9 @@ server:
       cookie:
         same-site: strict
         max-age: 30d
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: trainlog
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: trainlog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      terminationGracePeriodSeconds: 35
+      initContainers:
+        - name: migrate
+          image: trainlog-migrate:1.0.0
+          env:
+            - name: FLYWAY_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: trainlog-config
+                  key: DB_URL
+            - name: FLYWAY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: trainlog-db
+                  key: DB_USER
+            - name: FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: trainlog-db
+                  key: DB_PASSWORD
+            - name: FLYWAY_CONNECT_RETRIES
+              value: "30"
+      containers:
+        - name: backend
+          image: trainlog-backend:1.0.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: trainlog-config
+            - secretRef:
+                name: trainlog-db
+          env:
+            - name: PORT
+              value: "8080"
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=60
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 384Mi
+            limits:
+              memory: 768Mi

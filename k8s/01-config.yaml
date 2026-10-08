@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trainlog-config
+  namespace: trainlog
+data:
+  DB_NAME: trainlog
+  DB_URL: jdbc:postgresql://db:5432/trainlog
+  BACKEND_URL: http://backend.trainlog.svc.cluster.local:8080
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: trainlog-db
+  namespace: trainlog
+type: Opaque
+stringData:
+  DB_USER: trainlog
+  DB_PASSWORD: change-me

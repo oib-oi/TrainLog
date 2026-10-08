@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .requestCache(cache -> cache.disable())
                 .securityContext(context -> context.securityContextRepository(contextRepository))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/api/auth/register", "/api/auth/login", "/actuator/health").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
