@@ -1,5 +1,6 @@
 package ru.trainlog.workout;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,9 @@ import ru.trainlog.common.PageResponse;
 @Transactional
 public class WorkoutService {
 
-    private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "performedOn", "id");
+    private static final Sort NEWEST_FIRST = Sort.by(
+            Sort.Order.desc((@NonNull Workout workout) -> workout.getPerformedOn()),
+            Sort.Order.desc((@NonNull Workout workout) -> workout.getId()));
 
     private final WorkoutRepository repository;
     private final CurrentAccount currentAccount;

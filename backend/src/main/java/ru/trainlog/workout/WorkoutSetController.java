@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/sets")
+@RequestMapping("/api/sets/{id}")
 public class WorkoutSetController {
 
     private final WorkoutSetService service;
@@ -21,12 +21,12 @@ public class WorkoutSetController {
         this.service = service;
     }
 
-    @PutMapping("/{id}")
+    @PutMapping
     public WorkoutSetResponse update(@PathVariable Long id, @Valid @RequestBody WorkoutSetRequest request) {
         return service.update(id, request);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         service.delete(id);
