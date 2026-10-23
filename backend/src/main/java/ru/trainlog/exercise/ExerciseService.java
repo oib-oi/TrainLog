@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.ConflictException;
 import ru.trainlog.common.NotFoundException;
+import ru.trainlog.common.TrainlogMetrics;
 
 @Service
 @Transactional
@@ -15,10 +16,12 @@ public class ExerciseService {
 
     private final ExerciseRepository repository;
     private final CurrentAccount currentAccount;
+    private final TrainlogMetrics metrics;
 
-    public ExerciseService(ExerciseRepository repository, CurrentAccount currentAccount) {
+    public ExerciseService(ExerciseRepository repository, CurrentAccount currentAccount, TrainlogMetrics metrics) {
         this.repository = repository;
         this.currentAccount = currentAccount;
+        this.metrics = metrics;
     }
 
     @Transactional(readOnly = true)
@@ -40,7 +43,9 @@ public class ExerciseService {
             throw nameTaken(name);
         }
         var exercise = new Exercise(accountId, name, request.muscleGroup(), request.description());
-        return ExerciseResponse.from(repository.save(exercise));
+        var saved = repository.save(exercise);
+        metrics.exerciseCreated();
+        return ExerciseResponse.from(saved);
     }
 
     public ExerciseResponse update(Long id, ExerciseRequest request) {

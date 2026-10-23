@@ -17,6 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import ru.trainlog.common.ConflictException;
+import ru.trainlog.common.TrainlogMetrics;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -47,6 +48,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthenticationManager authenticationManager;
+
+    @MockitoBean
+    private TrainlogMetrics metrics;
 
     @Test
     void registerReturnsCreatedAccount() throws Exception {
@@ -115,6 +119,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.email").value("me@example.com"));
 
         verifyNoInteractions(authService);
+        verify(metrics).loginSucceeded();
     }
 
     @Test
@@ -124,6 +129,8 @@ class AuthControllerTest {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail").value("Неверная почта или пароль"));
+
+        verify(metrics).loginFailed();
     }
 
     @ParameterizedTest

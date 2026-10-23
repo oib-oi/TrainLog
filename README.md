@@ -6,12 +6,14 @@
 | [Отчёт_dz1.md](Отчёт_dz1.md) | предметная область и соответствие 12 факторам |
 | [k8s/Отчёт_dz2.md](k8s/Отчёт_dz2.md) | развёртывание в Kubernetes (minikube) |
 | [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md) | сбор логов в VictoriaLogs, LogsQL-запросы, алерты |
+| [k8s/Отчёт_dz4.md](k8s/Отчёт_dz4.md) | метрики в VictoriaMetrics: рантайм, PostgreSQL, бизнес-метрики |
 
 ## Требования
 
 - Docker с Docker Compose v2
 - Для запуска бэкенда вне Docker: JDK 25 и Maven 3.9+ (или IntelliJ IDEA со встроенным Maven)
 - Для Kubernetes: minikube и kubectl
+- Для VictoriaMetrics (ДЗ №4): Helm 3, установка в Windows: `winget install Helm.Helm`
 
 ## Структура
 
@@ -21,6 +23,7 @@ db/migration/            SQL-миграции Flyway
 frontend/html/           статический фронтенд
 frontend/nginx.conf.template
 k8s/                     манифесты Kubernetes: приложение (00–04) и логирование (05–07)
+k8s/monitoring/          values для helm-чарта VictoriaMetrics
 docker-compose.yml             основное описание сервисов
 docker-compose.override.yml    дополнения для локальной разработки
 .env.example             шаблон конфигурации

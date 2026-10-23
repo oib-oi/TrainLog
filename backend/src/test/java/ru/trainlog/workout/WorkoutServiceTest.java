@@ -17,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.NotFoundException;
 import ru.trainlog.common.PageResponse;
+import ru.trainlog.common.TrainlogMetrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +37,9 @@ class WorkoutServiceTest {
 
     @Mock
     private CurrentAccount currentAccount;
+
+    @Mock
+    private TrainlogMetrics metrics;
 
     @InjectMocks
     private WorkoutService service;
@@ -71,6 +75,7 @@ class WorkoutServiceTest {
         var response = service.create(new WorkoutRequest(DATE, "Ноги", "Тяжело", 60));
 
         assertThat(response).isEqualTo(new WorkoutResponse(null, DATE, "Ноги", "Тяжело", 60));
+        verify(metrics).workoutCreated();
     }
 
     @Test

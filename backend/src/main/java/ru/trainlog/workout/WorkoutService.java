@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.NotFoundException;
 import ru.trainlog.common.PageResponse;
+import ru.trainlog.common.TrainlogMetrics;
 
 @Service
 @Transactional
@@ -20,10 +21,12 @@ public class WorkoutService {
 
     private final WorkoutRepository repository;
     private final CurrentAccount currentAccount;
+    private final TrainlogMetrics metrics;
 
-    public WorkoutService(WorkoutRepository repository, CurrentAccount currentAccount) {
+    public WorkoutService(WorkoutRepository repository, CurrentAccount currentAccount, TrainlogMetrics metrics) {
         this.repository = repository;
         this.currentAccount = currentAccount;
+        this.metrics = metrics;
     }
 
     @Transactional(readOnly = true)
@@ -40,7 +43,9 @@ public class WorkoutService {
     public WorkoutResponse create(WorkoutRequest request) {
         var workout = new Workout(currentAccount.id(),
                 request.performedOn(), request.title(), request.notes(), request.durationMinutes());
-        return WorkoutResponse.from(repository.save(workout));
+        var saved = repository.save(workout);
+        metrics.workoutCreated();
+        return WorkoutResponse.from(saved);
     }
 
     public WorkoutResponse update(Long id, WorkoutRequest request) {

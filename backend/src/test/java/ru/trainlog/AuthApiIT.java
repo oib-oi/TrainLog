@@ -10,8 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.TestSecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,6 +38,17 @@ class AuthApiIT extends IntegrationTest {
     @Test
     void keepsHealthCheckOpen() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    }
+
+    @Test
+    void exposesMetricsWithoutSession() throws Exception {
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(CREDENTIALS))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("trainlog_registrations_total")))
+                .andExpect(content().string(containsString("jvm_memory_used_bytes")));
     }
 
     @Test

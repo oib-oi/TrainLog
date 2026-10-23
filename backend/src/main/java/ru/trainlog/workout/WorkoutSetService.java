@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.NotFoundException;
+import ru.trainlog.common.TrainlogMetrics;
 import ru.trainlog.exercise.Exercise;
 import ru.trainlog.exercise.ExerciseRepository;
 
@@ -18,15 +19,18 @@ public class WorkoutSetService {
     private final WorkoutRepository workoutRepository;
     private final ExerciseRepository exerciseRepository;
     private final CurrentAccount currentAccount;
+    private final TrainlogMetrics metrics;
 
     public WorkoutSetService(WorkoutSetRepository setRepository,
                              WorkoutRepository workoutRepository,
                              ExerciseRepository exerciseRepository,
-                             CurrentAccount currentAccount) {
+                             CurrentAccount currentAccount,
+                             TrainlogMetrics metrics) {
         this.setRepository = setRepository;
         this.workoutRepository = workoutRepository;
         this.exerciseRepository = exerciseRepository;
         this.currentAccount = currentAccount;
+        this.metrics = metrics;
     }
 
     @Transactional(readOnly = true)
@@ -44,7 +48,9 @@ public class WorkoutSetService {
                 request.reps(),
                 request.weightKg()
         );
-        return WorkoutSetResponse.from(setRepository.save(workoutSet));
+        var saved = setRepository.save(workoutSet);
+        metrics.setCreated(request.reps(), request.weightKg());
+        return WorkoutSetResponse.from(saved);
     }
 
     public WorkoutSetResponse update(Long id, WorkoutSetRequest request) {

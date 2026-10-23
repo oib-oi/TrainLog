@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.ConflictException;
 import ru.trainlog.common.NotFoundException;
+import ru.trainlog.common.TrainlogMetrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,6 +32,9 @@ class ExerciseServiceTest {
 
     @Mock
     private CurrentAccount currentAccount;
+
+    @Mock
+    private TrainlogMetrics metrics;
 
     @InjectMocks
     private ExerciseService service;
@@ -70,6 +74,7 @@ class ExerciseServiceTest {
 
         assertThat(response).isEqualTo(new ExerciseResponse(null, "Выпады", MuscleGroup.LEGS, "С гантелями", false));
         verify(repository).isNameTaken("Выпады", ACCOUNT_ID);
+        verify(metrics).exerciseCreated();
     }
 
     @Test
@@ -80,6 +85,7 @@ class ExerciseServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("Упражнение «Выпады» уже есть в справочнике");
         verify(repository, never()).save(any());
+        verify(metrics, never()).exerciseCreated();
     }
 
     @Test

@@ -9,12 +9,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import ru.trainlog.common.ConflictException;
+import ru.trainlog.common.TrainlogMetrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +27,9 @@ class AuthServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private TrainlogMetrics metrics;
 
     @InjectMocks
     private AuthService service;
@@ -39,6 +44,7 @@ class AuthServiceTest {
         verify(repository).save(saved.capture());
         assertThat(saved.getValue().getEmail()).isEqualTo("new@example.com");
         assertThat(saved.getValue().getPasswordHash()).isEqualTo("hash");
+        verify(metrics).registered();
     }
 
     @Test
@@ -49,5 +55,6 @@ class AuthServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("Почта new@example.com уже зарегистрирована");
         verify(repository, never()).save(any());
+        verifyNoInteractions(metrics);
     }
 }

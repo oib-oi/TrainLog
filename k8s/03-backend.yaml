@@ -23,6 +23,10 @@ spec:
     metadata:
       labels:
         app: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /actuator/prometheus
     spec:
       terminationGracePeriodSeconds: 35
       initContainers:
@@ -50,7 +54,8 @@ spec:
         - name: backend
           image: trainlog-backend:1.0.0
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
           envFrom:
             - configMapRef:
                 name: trainlog-config

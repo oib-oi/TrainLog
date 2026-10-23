@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import ru.trainlog.auth.CurrentAccount;
 import ru.trainlog.common.NotFoundException;
+import ru.trainlog.common.TrainlogMetrics;
 import ru.trainlog.exercise.Exercise;
 import ru.trainlog.exercise.ExerciseRepository;
 import ru.trainlog.exercise.MuscleGroup;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,9 @@ class WorkoutSetServiceTest {
 
     @Mock
     private CurrentAccount currentAccount;
+
+    @Mock
+    private TrainlogMetrics metrics;
 
     @InjectMocks
     private WorkoutSetService service;
@@ -89,6 +94,7 @@ class WorkoutSetServiceTest {
         assertThat(response.exerciseName()).isEqualTo("Приседания");
         assertThat(response.reps()).isEqualTo(10);
         assertThat(response.weightKg()).isEqualByComparingTo("80.5");
+        verify(metrics).setCreated(10, new BigDecimal("80.5"));
     }
 
     @Test
@@ -110,6 +116,7 @@ class WorkoutSetServiceTest {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("Не найдено: упражнение #2");
         verify(setRepository, never()).save(any());
+        verifyNoInteractions(metrics);
     }
 
     @Test
