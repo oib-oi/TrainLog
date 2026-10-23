@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmalert-rules
+  namespace: logging
+data:
+  trainlog.yaml: |
+    groups:
+      - name: trainlog
+        type: vlogs
+        interval: 1m
+        rules:
+          - alert: TrainlogErrors
+            expr: 'log.level:ERROR | stats by (service.name) count() as errors | filter errors:>0'
+            labels:
+              severity: critical
+            annotations:
+              summary: '{{ index $labels "service.name" }}: {{ $value }} записей с уровнем ERROR за минуту'
+
+          - alert: TooManyFailedLogins
+            expr: 'service.name:trainlog-backend url.path:="/api/auth/login" http.response.status_code:401 | stats count() as failed | filter failed:>=5'
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $value }} неудачных попыток входа за минуту'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmalert
+  namespace: logging
+spec:
+  selector:
+    app: vmalert
+  ports:
+    - port: 8880
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmalert
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vmalert
+  template:
+    metadata:
+      labels:
+        app: vmalert
+    spec:
+      containers:
+        - name: vmalert
+          image: victoriametrics/vmalert:v1.153.0
+          args:
+            - -datasource.url=http://victorialogs.logging.svc.cluster.local:9428
+            - -rule=/etc/vmalert/*.yaml
+            - -notifier.blackhole
+          ports:
+            - containerPort: 8880
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8880
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: rules
+              mountPath: /etc/vmalert
+              readOnly: true
+      volumes:
+        - name: rules
+          configMap:
+            name: vmalert-rules

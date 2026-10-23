@@ -1,6 +1,32 @@
+map $status $log_level {
+    ~^5     ERROR;
+    ~^4     WARN;
+    default INFO;
+}
+
+map $http_user_agent $loggable {
+    ~^kube-probe 0;
+    default      1;
+}
+
+log_format json escape=json '{'
+    '"@timestamp":"$time_iso8601",'
+    '"log":{"level":"$log_level"},'
+    '"message":"$request_method $request_uri $status",'
+    '"service":{"name":"trainlog-frontend"},'
+    '"request":{"id":"$request_id"},'
+    '"http":{"request":{"method":"$request_method"},"response":{"status_code":$status,"body":{"bytes":$body_bytes_sent}}},'
+    '"url":{"original":"$request_uri"},'
+    '"duration_s":$request_time,'
+    '"upstream":{"duration_s":"$upstream_response_time"},'
+    '"client":{"ip":"$remote_addr"},'
+    '"user_agent":{"original":"$http_user_agent"}'
+'}';
+
 server {
     listen ${PORT};
     root /usr/share/nginx/html;
+    access_log /dev/stdout json if=$loggable;
 
     resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
 
@@ -13,6 +39,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location = /sw.js {

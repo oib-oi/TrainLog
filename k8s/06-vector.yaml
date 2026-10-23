@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector
+  namespace: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector
+subjects:
+  - kind: ServiceAccount
+    name: vector
+    namespace: logging
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector
+  namespace: logging
+data:
+  vector.yaml: |
+    data_dir: /vector-data-dir
+
+    sources:
+      pods:
+        type: kubernetes_logs
+        extra_field_selector: metadata.namespace=trainlog
+        extra_label_selector: app
+        glob_minimum_cooldown_ms: 5000
+
+    transforms:
+      parse:
+        type: remap
+        inputs: [pods]
+        source: |
+          parsed, err = parse_json(.message)
+          if err == null && is_object(parsed) {
+            . = merge(., object!(parsed), deep: true)
+            del(."@timestamp")
+          }
+          if .service.name == null {
+            .service.name = .kubernetes.container_name
+          }
+          del(.file)
+          del(.source_type)
+          del(.kubernetes.node_labels)
+          del(.kubernetes.namespace_labels)
+          del(.kubernetes.pod_annotations)
+          del(.kubernetes.pod_ips)
+          del(.kubernetes.pod_uid)
+          del(.kubernetes.container_id)
+          del(.kubernetes.container_image_id)
+          del(.kubernetes.pod_labels."pod-template-hash")
+
+    sinks:
+      victorialogs:
+        type: elasticsearch
+        inputs: [parse]
+        endpoints: [http://victorialogs.logging.svc.cluster.local:9428/insert/elasticsearch/]
+        api_version: v8
+        compression: gzip
+        healthcheck:
+          enabled: false
+        request:
+          headers:
+            VL-Time-Field: timestamp
+            VL-Msg-Field: message
+            VL-Stream-Fields: service.name,kubernetes.pod_name
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector
+  namespace: logging
+spec:
+  selector:
+    matchLabels:
+      app: vector
+  template:
+    metadata:
+      labels:
+        app: vector
+    spec:
+      serviceAccountName: vector
+      containers:
+        - name: vector
+          image: timberio/vector:0.59.0-alpine
+          args: ["--config-dir", "/etc/vector/"]
+          env:
+            - name: VECTOR_SELF_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+              readOnly: true
+            - name: data
+              mountPath: /vector-data-dir
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: docker-containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: vector
+        - name: data
+          hostPath:
+            path: /var/lib/vector
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: docker-containers
+          hostPath:
+            path: /var/lib/docker/containers

@@ -1,12 +1,17 @@
 # TrainLog
 
 Дневник тренировок: справочник упражнений, тренировки и подходы в них.
-Описание предметной области и соответствия 12 факторам — в [Отчёт.md](Отчёт.md).
+| Документ | О чём |
+|---|---|
+| [Отчёт_dz1.md](Отчёт_dz1.md) | предметная область и соответствие 12 факторам |
+| [k8s/Отчёт_dz2.md](k8s/Отчёт_dz2.md) | развёртывание в Kubernetes (minikube) |
+| [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md) | сбор логов в VictoriaLogs, LogsQL-запросы, алерты |
 
 ## Требования
 
 - Docker с Docker Compose v2
 - Для запуска бэкенда вне Docker: JDK 25 и Maven 3.9+ (или IntelliJ IDEA со встроенным Maven)
+- Для Kubernetes: minikube и kubectl
 
 ## Структура
 
@@ -15,6 +20,7 @@ backend/                 Spring Boot приложение (REST API)
 db/migration/            SQL-миграции Flyway
 frontend/html/           статический фронтенд
 frontend/nginx.conf.template
+k8s/                     манифесты Kubernetes: приложение (00–04) и логирование (05–07)
 docker-compose.yml             основное описание сервисов
 docker-compose.override.yml    дополнения для локальной разработки
 .env.example             шаблон конфигурации
@@ -47,7 +53,7 @@ docker compose -f docker-compose.yml up --build
 
 Остановка: `docker compose down`. Остановка с удалением данных БД: `docker compose down -v`.
 
-Развёртывание в Kubernetes (minikube) — манифесты и инструкция в [k8s/Отчёт.md](k8s/Отчёт.md).
+Запуск в Kubernetes — в разделе [Kubernetes (minikube)](#kubernetes-minikube).
 
 ## Конфигурация
 
@@ -63,6 +69,122 @@ docker compose -f docker-compose.yml up --build
 | `APP_VERSION` | версия релиза, ею помечаются собранные образы (по умолчанию `dev`) |
 
 Бэкенд читает `DB_URL`, `DB_USER`, `DB_PASSWORD` и `PORT`; в Docker их выставляет `docker-compose.yml`.
+Необязательная `APP_ENV` (по умолчанию `local`) попадает в логи как `service.environment`.
+
+## Логи
+
+Бэкенд и nginx пишут в stdout по одному JSON-объекту на строку, имена полей взяты из
+Elastic Common Schema: `@timestamp`, `log.level`, `message`, `service.name`, `request.id`,
+`http.response.status_code` и другие. На каждый HTTP-запрос пишется одна строка access-лога.
+nginx генерирует `request.id` и передаёт его бэкенду в заголовке `X-Request-Id`, поэтому
+запрос можно проследить через оба сервиса.
+
+```bash
+docker compose logs -f backend
+```
+
+Полное описание полей — в [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md#формат-логов).
+
+## Kubernetes (minikube)
+
+Приложение разворачивается в namespace `trainlog`, сбор логов — в namespace `logging`:
+
+| Файл | Что создаёт |
+|---|---|
+| `00-namespace.yaml`, `01-config.yaml` | namespace `trainlog`, ConfigMap и Secret |
+| `02-db.yaml` | PostgreSQL (StatefulSet + PVC) |
+| `03-backend.yaml` | бэкенд, миграции запускаются в initContainer |
+| `04-frontend.yaml` | nginx, Service NodePort 30080 |
+| `05-victorialogs.yaml` | VictoriaLogs (StatefulSet + PVC) в namespace `logging` |
+| `06-vector.yaml` | Vector (DaemonSet): читает логи подов и отправляет в VictoriaLogs |
+| `07-vmalert.yaml` | vmalert: алерты по LogsQL-запросам |
+
+### Запуск
+
+1. Запустить кластер с Docker-рантаймом, чтобы работал `minikube docker-env`:
+
+   ```bash
+   minikube start --driver=docker --container-runtime=docker --cpus=2 --memory=3072
+   ```
+
+2. Собрать образы сразу в Docker-демоне minikube:
+
+   ```bash
+   eval $(minikube docker-env)                                                  # bash
+   & minikube -p minikube docker-env --shell powershell | Invoke-Expression    # PowerShell
+
+   docker compose -f docker-compose.yml build
+   ```
+
+   У образов фиксированный тег `1.0.0`, поэтому Kubernetes берёт их из локального кэша узла.
+
+3. Развернуть:
+
+   ```bash
+   kubectl apply -f k8s/
+   kubectl -n trainlog rollout restart deploy/backend deploy/frontend
+   ```
+
+   `rollout restart` нужен, если приложение уже было развёрнуто и образы пересобраны: тег не
+   изменился, поэтому сам `kubectl apply` поды не перезапустит.
+
+4. Дождаться, пока все поды станут `Running` и `1/1` (30–60 секунд):
+
+   ```bash
+   kubectl get pods -n trainlog
+   kubectl get pods -n logging
+   ```
+
+5. Открыть интерфейсы. Каждый port-forward держит терминал, поэтому каждую команду нужно запускать
+   в отдельном окне:
+
+   ```bash
+   kubectl -n trainlog port-forward svc/frontend 8080:80        # приложение
+   kubectl -n logging port-forward svc/victorialogs 9428:9428   # vmui
+   kubectl -n logging port-forward svc/vmalert 8880:8880        # vmalert
+   ```
+
+   | Что | Адрес |
+   |---|---|
+   | приложение | http://localhost:8080 |
+   | логи (vmui) | http://localhost:9428/select/vmui/ |
+   | алерты | http://localhost:8880/vmalert/alerts |
+
+   Приложение можно открыть и без port-forward: `minikube service frontend -n trainlog`.
+   На Windows с драйвером docker эта команда держит туннель, поэтому терминал тоже нужно оставить открытым.
+
+   Ошибка `bind: Only one usage of each socket address` означает, что порт уже занят, обычно
+   port-forward, запущенным раньше. Если адрес открывается, ничего делать не нужно.
+
+Логи появляются в vmui через 5–10 секунд после обращений к приложению. Примеры LogsQL-запросов —
+в [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md#logsql-запросы). Те же запросы можно выполнить через API.
+В PowerShell нужно писать `curl.exe`, потому что `curl` там — псевдоним `Invoke-WebRequest`:
+
+```bash
+curl.exe http://localhost:9428/select/logsql/query --data-urlencode "query=_time:5m"
+```
+
+### Масштабирование
+
+```bash
+kubectl -n trainlog scale deploy/backend --replicas=3
+kubectl -n trainlog get endpointslices -l kubernetes.io/service-name=backend
+```
+
+Сессии хранятся в PostgreSQL, поэтому вход не теряется, на какую бы реплику ни попал запрос.
+БД не масштабируется.
+
+### Полезные команды
+
+```bash
+kubectl -n trainlog logs deploy/backend              # логи бэкенда
+kubectl -n trainlog logs deploy/backend -c migrate   # логи миграций
+kubectl -n trainlog exec -it db-0 -- psql -U trainlog -d trainlog
+kubectl -n logging logs ds/vector                    # ошибки доставки логов
+kubectl delete ns trainlog logging                   # удалить приложение и логирование
+kubectl delete clusterrole,clusterrolebinding vector
+minikube stop
+```
 
 ## Разработка
 

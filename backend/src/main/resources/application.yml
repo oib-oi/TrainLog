@@ -28,3 +28,13 @@ management:
     health:
       probes:
         enabled: true
+
+logging:
+  structured:
+    format:
+      console: ecs
+    ecs:
+      service:
+        name: trainlog-backend
+        environment: ${APP_ENV:local}
+        node-name: ${HOSTNAME:local}
