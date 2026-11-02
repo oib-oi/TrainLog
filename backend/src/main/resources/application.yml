@@ -27,7 +27,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, prometheus
+        include: health, prometheus, faults
   endpoint:
     health:
       probes:
@@ -35,6 +35,9 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      slo:
+        "[http.server.requests]": 100ms, 300ms, 1s
 
 logging:
   structured:

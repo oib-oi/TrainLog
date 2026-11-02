@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loadgen
+  namespace: trainlog
+data:
+  loadgen.sh: |
+    api=http://frontend/api
+    account='{"email":"loadgen@trainlog.local","password":"loadgen-password"}'
+
+    request() {
+      curl -s -m 40 -b /tmp/cookies -c /tmp/cookies -o /tmp/body -w '%{http_code}' \
+        -H 'Content-Type: application/json' "$@"
+    }
+
+    first_id() {
+      grep -o '"id":[0-9]*' /tmp/body | head -1 | cut -d: -f2
+    }
+
+    while true; do
+      if [ "$(request "$api/workouts?size=5")" = 401 ]; then
+        [ "$(request -d "$account" $api/auth/login)" = 200 ] || request -d "$account" $api/auth/register > /dev/null
+      fi
+
+      request $api/exercises > /dev/null
+      exercise=$(first_id)
+
+      if [ "$(request -d "{\"performedOn\":\"$(date +%F)\",\"title\":\"loadgen\"}" $api/workouts)" = 201 ]; then
+        workout=$(first_id)
+        request -d "{\"exerciseId\":${exercise:-0},\"reps\":10,\"weightKg\":50}" $api/workouts/$workout/sets > /dev/null
+        request $api/workouts/$workout/sets > /dev/null
+        request -X DELETE $api/workouts/$workout > /dev/null
+      fi
+
+      sleep 1
+    done
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: trainlog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      containers:
+        - name: loadgen
+          image: curlimages/curl:8.11.1
+          command: ["sh", "/scripts/loadgen.sh"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: loadgen

@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slo-rules
+  namespace: monitoring
+data:
+  trainlog-sli.yaml: |
+    groups:
+      - name: trainlog-sli
+        interval: 1m
+        rules:
+          - record: trainlog:api_requests:increase1m
+            expr: sum(increase(http_server_requests_seconds_count{application="trainlog", uri!~"/actuator/.*"}[1m]))
+
+          - record: trainlog:api_requests_ok:increase1m
+            expr: sum(increase(http_server_requests_seconds_count{application="trainlog", uri!~"/actuator/.*", status!~"5.."}[1m]))
+
+          - record: trainlog:api_requests_fast:increase1m
+            expr: sum(increase(http_server_requests_seconds_bucket{application="trainlog", uri!~"/actuator/.*", le="0.3"}[1m]))
+
+          - record: trainlog:db_up:minute
+            expr: min(min_over_time(pg_up[1m])) or on() sum(max_over_time(up{app="backend"}[1m])) * 0
+
+          - record: trainlog:probe_ok:minute
+            expr: min(min_over_time(probe_success{job="blackbox"}[1m])) or on() sum(max_over_time(up{job="blackbox"}[1m])) * 0
+
+      - name: trainlog-slo
+        interval: 1m
+        rules:
+          - alert: ApiAvailabilityBudgetBurn
+            expr: |
+              1 - sum_over_time(trainlog:api_requests_ok:increase1m[1h]) / sum_over_time(trainlog:api_requests:increase1m[1h]) > 14.4 * 0.005
+              and
+              1 - sum_over_time(trainlog:api_requests_ok:increase1m[5m]) / sum_over_time(trainlog:api_requests:increase1m[5m]) > 14.4 * 0.005
+            labels:
+              severity: critical
+            annotations:
+              summary: 'Бюджет ошибок SLO доступности API расходуется в 14 раз быстрее нормы'
+
+          - alert: ApiLatencyBudgetBurn
+            expr: |
+              1 - sum_over_time(trainlog:api_requests_fast:increase1m[1h]) / sum_over_time(trainlog:api_requests:increase1m[1h]) > 14.4 * 0.05
+              and
+              1 - sum_over_time(trainlog:api_requests_fast:increase1m[5m]) / sum_over_time(trainlog:api_requests:increase1m[5m]) > 14.4 * 0.05
+            labels:
+              severity: warning
+            annotations:
+              summary: 'Бюджет ошибок SLO латентности API расходуется в 14 раз быстрее нормы'
+
+          - alert: DatabaseBudgetBurn
+            expr: 1 - avg_over_time(trainlog:db_up:minute[1h]) > 14.4 * 0.001 and 1 - avg_over_time(trainlog:db_up:minute[5m]) > 14.4 * 0.001
+            labels:
+              severity: critical
+            annotations:
+              summary: 'Бюджет ошибок SLO доступности БД расходуется в 14 раз быстрее нормы'
+
+          - alert: ProbeBudgetBurn
+            expr: 1 - avg_over_time(trainlog:probe_ok:minute[1h]) > 14.4 * 0.005 and 1 - avg_over_time(trainlog:probe_ok:minute[5m]) > 14.4 * 0.005
+            labels:
+              severity: critical
+            annotations:
+              summary: 'Бюджет ошибок SLO доступности по проберу расходуется в 14 раз быстрее нормы'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmalert-slo
+  namespace: monitoring
+spec:
+  selector:
+    app: vmalert-slo
+  ports:
+    - port: 8880
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmalert-slo
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vmalert-slo
+  template:
+    metadata:
+      labels:
+        app: vmalert-slo
+    spec:
+      containers:
+        - name: vmalert
+          image: victoriametrics/vmalert:v1.154.0
+          args:
+            - -datasource.url=http://vm-single-victoria-metrics-single-server:8428
+            - -remoteWrite.url=http://vm-single-victoria-metrics-single-server:8428
+            - -remoteRead.url=http://vm-single-victoria-metrics-single-server:8428
+            - -rule=/etc/vmalert/*.yaml
+            - -notifier.blackhole
+          ports:
+            - containerPort: 8880
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8880
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: rules
+              mountPath: /etc/vmalert
+              readOnly: true
+      volumes:
+        - name: rules
+          configMap:
+            name: slo-rules

@@ -9,6 +9,20 @@ server:
     limits:
       memory: 512Mi
 
+  extraArgs:
+    vmui.customDashboardsPath: /vmui-dashboards
+    vmalert.proxyURL: http://vmalert-slo:8880
+
+  extraVolumes:
+    - name: vmui-dashboards
+      configMap:
+        name: vmui-dashboards
+
+  extraVolumeMounts:
+    - name: vmui-dashboards
+      mountPath: /vmui-dashboards
+      readOnly: true
+
   scrape:
     enabled: true
     config:
@@ -42,3 +56,19 @@ server:
               target_label: pod
             - source_labels: [__meta_kubernetes_pod_container_name]
               target_label: container
+
+        - job_name: blackbox
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          static_configs:
+            - targets:
+                - http://frontend.trainlog.svc.cluster.local/
+                - http://backend.trainlog.svc.cluster.local:8080/actuator/health
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115

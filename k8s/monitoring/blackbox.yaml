@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+spec:
+  selector:
+    app: blackbox-exporter
+  ports:
+    - port: 9115
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        app: blackbox-exporter
+    spec:
+      containers:
+        - name: blackbox-exporter
+          image: prom/blackbox-exporter:v0.25.0
+          ports:
+            - containerPort: 9115
+          readinessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9115
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi

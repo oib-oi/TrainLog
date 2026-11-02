@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmui-dashboards
+  namespace: monitoring
+data:
+  trainlog-slo.json: |
+    {
+      "title": "TrainLog: SLI, SLO, SLA",
+      "rows": [
+        {
+          "title": "SLI сейчас (окно 5 минут)",
+          "panels": [
+            {
+              "title": "Доступность API, %",
+              "description": "Доля запросов к API без ответа 5xx",
+              "width": 6,
+              "expr": [
+                "100 * sum_over_time(trainlog:api_requests_ok:increase1m[5m]) / sum_over_time(trainlog:api_requests:increase1m[5m])",
+                "99.5"
+              ],
+              "alias": ["SLI", "SLO"]
+            },
+            {
+              "title": "Запросы быстрее 300 мс, %",
+              "description": "Доля запросов к API, обработанных быстрее 300 мс",
+              "width": 6,
+              "expr": [
+                "100 * sum_over_time(trainlog:api_requests_fast:increase1m[5m]) / sum_over_time(trainlog:api_requests:increase1m[5m])",
+                "95"
+              ],
+              "alias": ["SLI", "SLO"]
+            },
+            {
+              "title": "Пробер: успешные проверки",
+              "description": "probe_success blackbox-экспортера по каждой цели, 1 — проверка прошла",
+              "width": 6,
+              "expr": ["max by (instance) (probe_success{job=\"blackbox\"})"]
+            },
+            {
+              "title": "PostgreSQL доступна",
+              "description": "trainlog:db_up:minute — 1, если всю минуту pg_up был равен 1",
+              "width": 6,
+              "expr": ["trainlog:db_up:minute"],
+              "alias": ["хорошая минута"]
+            }
+          ]
+        },
+        {
+          "title": "SLO (скользящее окно 30 дней)",
+          "panels": [
+            {
+              "title": "Доступность API, %",
+              "width": 3,
+              "expr": [
+                "100 * sum_over_time(trainlog:api_requests_ok:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d])",
+                "99.5"
+              ],
+              "alias": ["SLI", "SLO"]
+            },
+            {
+              "title": "Быстрее 300 мс, %",
+              "width": 3,
+              "expr": [
+                "100 * sum_over_time(trainlog:api_requests_fast:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d])",
+                "95"
+              ],
+              "alias": ["SLI", "SLO"]
+            },
+            {
+              "title": "Хорошие минуты БД, %",
+              "width": 3,
+              "expr": ["100 * avg_over_time(trainlog:db_up:minute[30d])", "99.9"],
+              "alias": ["SLI", "SLO"]
+            },
+            {
+              "title": "Хорошие минуты пробера, %",
+              "width": 3,
+              "expr": ["100 * avg_over_time(trainlog:probe_ok:minute[30d])", "99.5"],
+              "alias": ["SLI", "SLO"]
+            }
+          ]
+        },
+        {
+          "title": "Бюджет ошибок",
+          "panels": [
+            {
+              "title": "Остаток бюджета ошибок за 30 дней, %",
+              "description": "100 — бюджет не тронут, 0 — исчерпан, меньше 0 — SLO нарушен",
+              "width": 12,
+              "expr": [
+                "100 * (1 - (1 - sum_over_time(trainlog:api_requests_ok:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d])) / 0.005)",
+                "100 * (1 - (1 - sum_over_time(trainlog:api_requests_fast:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d])) / 0.05)",
+                "100 * (1 - (1 - avg_over_time(trainlog:db_up:minute[30d])) / 0.001)",
+                "100 * (1 - (1 - avg_over_time(trainlog:probe_ok:minute[30d])) / 0.005)"
+              ],
+              "alias": ["доступность API", "латентность API", "доступность БД", "пробер"]
+            }
+          ]
+        },
+        {
+          "title": "SLA (30 дней)",
+          "panels": [
+            {
+              "title": "Компоненты SLA, %",
+              "width": 6,
+              "expr": [
+                "100 * avg_over_time(trainlog:probe_ok:minute[30d])",
+                "100 * sum_over_time(trainlog:api_requests_ok:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d])",
+                "99"
+              ],
+              "alias": ["доступность по проберу", "успешные запросы API", "SLA"]
+            },
+            {
+              "title": "Общий SLA: худший из компонентов, %",
+              "width": 6,
+              "expr": [
+                "100 * min(label_set(avg_over_time(trainlog:probe_ok:minute[30d]), \"sli\", \"probe\") or label_set(sum_over_time(trainlog:api_requests_ok:increase1m[30d]) / sum_over_time(trainlog:api_requests:increase1m[30d]), \"sli\", \"api\"))",
+                "99"
+              ],
+              "alias": ["SLA-показатель", "SLA"]
+            }
+          ]
+        }
+      ]
+    }

@@ -7,6 +7,7 @@
 | [k8s/Отчёт_dz2.md](k8s/Отчёт_dz2.md) | развёртывание в Kubernetes (minikube) |
 | [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md) | сбор логов в VictoriaLogs, LogsQL-запросы, алерты |
 | [k8s/Отчёт_dz4.md](k8s/Отчёт_dz4.md) | метрики в VictoriaMetrics: рантайм, PostgreSQL, бизнес-метрики |
+| [k8s/Отчёт_dz5.md](k8s/Отчёт_dz5.md) | SLI, SLO и SLA: пробер, recording-правила, дашборд vmui, инъекция сбоев |
 
 ## Требования
 
@@ -22,8 +23,8 @@ backend/                 Spring Boot приложение (REST API)
 db/migration/            SQL-миграции Flyway
 frontend/html/           статический фронтенд
 frontend/nginx.conf.template
-k8s/                     манифесты Kubernetes: приложение (00–04) и логирование (05–07)
-k8s/monitoring/          values для helm-чарта VictoriaMetrics
+k8s/                     манифесты Kubernetes: приложение (00–04), логирование (05–07), нагрузка (08)
+k8s/monitoring/          values для helm-чарта VictoriaMetrics, пробер, правила SLI и дашборд vmui
 docker-compose.yml             основное описание сервисов
 docker-compose.override.yml    дополнения для локальной разработки
 .env.example             шаблон конфигурации
@@ -101,6 +102,7 @@ docker compose logs -f backend
 | `05-victorialogs.yaml` | VictoriaLogs (StatefulSet + PVC) в namespace `logging` |
 | `06-vector.yaml` | Vector (DaemonSet): читает логи подов и отправляет в VictoriaLogs |
 | `07-vmalert.yaml` | vmalert: алерты по LogsQL-запросам |
+| `08-loadgen.yaml` | генератор нагрузки на API для расчёта SLI |
 
 ### Запуск
 
