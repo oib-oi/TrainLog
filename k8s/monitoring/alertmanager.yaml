@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    route:
+      receiver: telegram
+      group_by: [alertname]
+      group_wait: 30s
+      group_interval: 2m
+      repeat_interval: 4h
+      routes:
+        - matchers: [severity = "critical"]
+          receiver: telegram
+          repeat_interval: 1h
+
+    inhibit_rules:
+      - source_matchers: [alertname = "DatabaseDown"]
+        target_matchers: [alertname =~ "ApiHighErrorRate|ApiSlowResponses|WorkoutsNotCreated"]
+      - source_matchers: [alertname = "BackendDown"]
+        target_matchers: [alertname = "WorkoutsNotCreated"]
+
+    receivers:
+      - name: telegram
+        telegram_configs:
+          - bot_token_file: /etc/telegram/token
+            chat_id: CHAT_ID
+            parse_mode: HTML
+            message: |-
+              {{ if eq .Status "firing" }}🔴 <b>FIRING</b>{{ else }}🟢 <b>RESOLVED</b>{{ end }} {{ .CommonLabels.alertname }} [{{ .CommonLabels.severity }}]
+              {{ range .Alerts }}
+              • {{ .Annotations.summary }}{{ end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  selector:
+    app: alertmanager
+  ports:
+    - port: 9093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      initContainers:
+        - name: config
+          image: busybox:1.37
+          command: ["sh", "-c", "sed \"s/CHAT_ID/$(cat /etc/telegram/chat-id)/\" /config/alertmanager.yml > /etc/alertmanager/alertmanager.yml"]
+          volumeMounts:
+            - name: config-template
+              mountPath: /config
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: telegram
+              mountPath: /etc/telegram
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.28.1
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports:
+            - containerPort: 9093
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9093
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+              readOnly: true
+            - name: telegram
+              mountPath: /etc/telegram
+              readOnly: true
+            - name: storage
+              mountPath: /alertmanager
+      volumes:
+        - name: config-template
+          configMap:
+            name: alertmanager
+        - name: config
+          emptyDir: {}
+        - name: telegram
+          secret:
+            secretName: alertmanager-telegram
+        - name: storage
+          emptyDir: {}

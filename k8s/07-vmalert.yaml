@@ -56,7 +56,7 @@ spec:
           args:
             - -datasource.url=http://victorialogs.logging.svc.cluster.local:9428
             - -rule=/etc/vmalert/*.yaml
-            - -notifier.blackhole
+            - -notifier.url=http://alertmanager.monitoring.svc.cluster.local:9093
           ports:
             - containerPort: 8880
           readinessProbe:

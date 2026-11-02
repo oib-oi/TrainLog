@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trainlog-alerts
+  namespace: monitoring
+data:
+  trainlog-alerts.yaml: |
+    groups:
+      - name: trainlog-service
+        interval: 30s
+        rules:
+          - alert: BackendDown
+            expr: absent(up{app="backend"} == 1)
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: 'Бэкенд недоступен: ни один под backend не отдаёт метрики'
+
+          - alert: DatabaseDown
+            expr: pg_up == 0 or absent(pg_up)
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: 'PostgreSQL недоступна: pg_up = 0 или экспортер не отвечает'
+
+          - alert: ApiHighErrorRate
+            expr: |
+              sum(rate(http_server_requests_seconds_count{application="trainlog", uri!~"/actuator/.*", status=~"5.."}[5m]))
+                / sum(rate(http_server_requests_seconds_count{application="trainlog", uri!~"/actuator/.*"}[5m]))
+                > 0.05
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: '{{ $value | humanizePercentage }} запросов к API за 5 минут завершились ошибкой 5xx'
+
+          - alert: ApiSlowResponses
+            expr: |
+              1 - sum(rate(http_server_requests_seconds_bucket{application="trainlog", uri!~"/actuator/.*", le="1.0"}[5m]))
+                / sum(rate(http_server_requests_seconds_count{application="trainlog", uri!~"/actuator/.*"}[5m]))
+                > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $value | humanizePercentage }} запросов к API за 5 минут выполнялись дольше 1 секунды'
+
+          - alert: WorkoutsNotCreated
+            expr: |
+              sum(increase(trainlog_workouts_total[5m])) == 0
+                and on() sum(increase(http_server_requests_seconds_count{application="trainlog", uri="/api/workouts", method="POST"}[5m])) > 0
+            labels:
+              severity: warning
+            annotations:
+              summary: 'За 5 минут не создано ни одной тренировки, хотя запросы POST /api/workouts приходят'
+
+          - alert: FailedLoginsSpike
+            expr: sum(increase(trainlog_logins_total{result="failure"}[5m])) > 20
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $value | humanize }} неудачных попыток входа за 5 минут, возможен подбор пароля'
+
+      - name: trainlog-runtime
+        interval: 30s
+        rules:
+          - alert: JvmHeapHigh
+            expr: |
+              sum by (pod) (jvm_memory_used_bytes{application="trainlog", area="heap"})
+                / sum by (pod) (jvm_memory_max_bytes{application="trainlog", area="heap"} > 0)
+                > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: '{{ $labels.pod }}: heap заполнен на {{ $value | humanizePercentage }}'
+
+          - alert: HikariConnectionTimeouts
+            expr: sum by (pod) (increase(hikaricp_connections_timeout_total{application="trainlog"}[5m])) > 0
+            labels:
+              severity: critical
+            annotations:
+              summary: '{{ $labels.pod }}: {{ $value | humanize }} таймаутов получения соединения из пула HikariCP за 5 минут'

@@ -8,6 +8,7 @@
 | [k8s/Отчёт_dz3.md](k8s/Отчёт_dz3.md) | сбор логов в VictoriaLogs, LogsQL-запросы, алерты |
 | [k8s/Отчёт_dz4.md](k8s/Отчёт_dz4.md) | метрики в VictoriaMetrics: рантайм, PostgreSQL, бизнес-метрики |
 | [k8s/Отчёт_dz5.md](k8s/Отчёт_dz5.md) | SLI, SLO и SLA: пробер, recording-правила, дашборд vmui, инъекция сбоев |
+| [k8s/Отчёт_dz6.md](k8s/Отчёт_dz6.md) | алерты на метрики сервиса и Actuator, Alertmanager с уведомлениями в Telegram |
 
 ## Требования
 
@@ -24,7 +25,7 @@ db/migration/            SQL-миграции Flyway
 frontend/html/           статический фронтенд
 frontend/nginx.conf.template
 k8s/                     манифесты Kubernetes: приложение (00–04), логирование (05–07), нагрузка (08)
-k8s/monitoring/          values для helm-чарта VictoriaMetrics, пробер, правила SLI и дашборд vmui
+k8s/monitoring/          values для helm-чарта VictoriaMetrics, пробер, правила SLI и алертов, Alertmanager, дашборд vmui
 docker-compose.yml             основное описание сервисов
 docker-compose.override.yml    дополнения для локальной разработки
 .env.example             шаблон конфигурации

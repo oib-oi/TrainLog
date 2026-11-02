@@ -95,7 +95,7 @@ spec:
             - -remoteWrite.url=http://vm-single-victoria-metrics-single-server:8428
             - -remoteRead.url=http://vm-single-victoria-metrics-single-server:8428
             - -rule=/etc/vmalert/*.yaml
-            - -notifier.blackhole
+            - -notifier.url=http://alertmanager:9093
           ports:
             - containerPort: 8880
           readinessProbe:
@@ -115,5 +115,9 @@ spec:
               readOnly: true
       volumes:
         - name: rules
-          configMap:
-            name: slo-rules
+          projected:
+            sources:
+              - configMap:
+                  name: slo-rules
+              - configMap:
+                  name: trainlog-alerts
